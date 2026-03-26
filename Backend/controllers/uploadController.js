@@ -26,12 +26,15 @@ export const uploadImages = async (req, res) => {
 };
 
 // @desc    Delete image
-// @route   DELETE /api/upload/:publicId
+// @route   DELETE /api/upload/:folder/:subfolder/:publicId or /api/upload/:folder/:publicId
 export const deleteImage = async (req, res) => {
   try {
-    // Public ID may contain slashes, so reconstruct it
-    const publicId = req.params.publicId + (req.params[0] ? '/' + req.params[0] : '');
-    await deleteFromCloudinary(publicId);
+    const { folder, subfolder, publicId } = req.params;
+    const fullPublicId = subfolder
+      ? `${folder}/${subfolder}/${publicId}`
+      : `${folder}/${publicId}`;
+
+    await deleteFromCloudinary(fullPublicId);
     res.json({ success: true, message: 'Image deleted' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

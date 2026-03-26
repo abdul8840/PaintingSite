@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchCategories } from '../../store/slices/categorySlice';
+import customOrderApi from '../../api/customOrderApi';
 import uploadApi from '../../api/uploadApi';
 import { useToast } from '../../hooks/useToast';
-import { HiPlus, HiX, HiCloudUpload } from 'react-icons/hi';
+import { HiCloudUpload, HiX } from 'react-icons/hi';
 
 const MEDIUMS = ['oil', 'acrylic', 'watercolor', 'pencil', 'charcoal', 'digital', 'mixed-media', 'ink', 'pastel', 'other'];
 const STYLES = ['realistic', 'abstract', 'impressionist', 'modern', 'contemporary', 'pop-art', 'minimalist', 'surreal', 'portrait', 'landscape', 'other'];
@@ -16,16 +17,21 @@ export default function ArtworkForm({ initialData, onSubmit, loading }) {
 
   const [form, setForm] = useState({
     title: '', description: '', price: '', comparePrice: '', category: '',
-    medium: '', style: '', stock: 1, tags: '',
+    artist: '', medium: '', style: '', stock: 1, tags: '',
     width: '', height: '', unit: 'inches',
     isFramed: false, frameDetails: '', isFeatured: false, isActive: true,
     seoTitle: '', seoDescription: '',
   });
   const [images, setImages] = useState([]);
   const [uploading, setUploading] = useState(false);
+  const [artists, setArtists] = useState([]);
 
   useEffect(() => {
     dispatch(fetchCategories());
+    // Fetch artists list
+    customOrderApi.getArtists()
+      .then(res => setArtists(res.artists || []))
+      .catch(() => {});
   }, [dispatch]);
 
   useEffect(() => {
@@ -36,6 +42,7 @@ export default function ArtworkForm({ initialData, onSubmit, loading }) {
         price: initialData.price || '',
         comparePrice: initialData.comparePrice || '',
         category: initialData.category?._id || initialData.category || '',
+        artist: initialData.artist?._id || initialData.artist || '',
         medium: initialData.medium || '',
         style: initialData.style || '',
         stock: initialData.stock ?? 1,
@@ -76,6 +83,7 @@ export default function ArtworkForm({ initialData, onSubmit, loading }) {
       toast.error(err.message || 'Upload failed');
     } finally {
       setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
     }
   };
 
@@ -86,6 +94,8 @@ export default function ArtworkForm({ initialData, onSubmit, loading }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (images.length === 0) { toast.error('Please add at least one image'); return; }
+    if (!form.category) { toast.error('Please select a category'); return; }
+    if (!form.medium) { toast.error('Please select a medium'); return; }
 
     const data = {
       ...form,
@@ -96,6 +106,12 @@ export default function ArtworkForm({ initialData, onSubmit, loading }) {
       dimensions: { width: Number(form.width), height: Number(form.height), unit: form.unit },
       tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
     };
+
+    // Remove empty optional fields
+    if (!data.artist) delete data.artist;
+    if (!data.comparePrice) delete data.comparePrice;
+    if (!data.seoTitle) delete data.seoTitle;
+    if (!data.seoDescription) delete data.seoDescription;
 
     onSubmit(data);
   };
@@ -131,12 +147,13 @@ export default function ArtworkForm({ initialData, onSubmit, loading }) {
 
       {/* Images */}
       <section>
-        <h3>Images</h3>
+        <h3>Images (max 5)</h3>
         <div>
           {images.map((img, i) => (
             <div key={i}>
-              <img src={img.url} alt="" />
+              <img src={img.url} alt="" style={{ width: 100, height: 100, objectFit: 'cover' }} />
               <button type="button" onClick={() => removeImage(i)}><HiX /></button>
+              {i === 0 && <span>Primary</span>}
             </div>
           ))}
           {images.length < 5 && (
@@ -144,7 +161,7 @@ export default function ArtworkForm({ initialData, onSubmit, loading }) {
               {uploading ? 'Uploading...' : <><HiCloudUpload /> Add Image</>}
             </button>
           )}
-          <input ref={fileRef} type="file" accept="image/*" multiple onChange={handleImageUpload} hidden />
+          <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={handleImageUpload} hidden />
         </div>
       </section>
 
@@ -161,6 +178,17 @@ export default function ArtworkForm({ initialData, onSubmit, loading }) {
               ))}
             </select>
           </div>
+          <div>
+            <label>Artist</label>
+            <select name="artist" value={form.artist} onChange={handleChange}>
+              <option value="">Select Artist (Optional)</option>
+              {artists.map((a) => (
+                <option key={a._id} value={a._id}>{a.firstName} {a.lastName} ({a.email})</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div>
           <div>
             <label>Medium *</label>
             <select name="medium" value={form.medium} onChange={handleChange} required>
@@ -188,11 +216,11 @@ export default function ArtworkForm({ initialData, onSubmit, loading }) {
         <div>
           <div>
             <label>Width *</label>
-            <input name="width" type="number" value={form.width} onChange={handleChange} required min="1" />
+            <input name="width" type="number" value={form.width} onChange={handleChange} required min="1" step="0.1" />
           </div>
           <div>
             <label>Height *</label>
-            <input name="height" type="number" value={form.height} onChange={handleChange} required min="1" />
+            <input name="height" type="number" value={form.height} onChange={handleChange} required min="1" step="0.1" />
           </div>
           <div>
             <label>Unit</label>
@@ -206,18 +234,31 @@ export default function ArtworkForm({ initialData, onSubmit, loading }) {
 
       {/* Options */}
       <section>
-        <h3>Options</h3>
+        <h3>Additional Options</h3>
         <div>
           <label>Tags (comma separated)</label>
           <input name="tags" value={form.tags} onChange={handleChange} placeholder="landscape, nature, sunset" />
         </div>
         <div>
-          <label><input type="checkbox" name="isFramed" checked={form.isFramed} onChange={handleChange} /> Framed</label>
-          {form.isFramed && <input name="frameDetails" value={form.frameDetails} onChange={handleChange} placeholder="Frame details" />}
+          <label>
+            <input type="checkbox" name="isFramed" checked={form.isFramed} onChange={handleChange} />
+            Framed
+          </label>
+          {form.isFramed && (
+            <input name="frameDetails" value={form.frameDetails} onChange={handleChange} placeholder="Frame details (e.g., Black wood frame)" />
+          )}
         </div>
         <div>
-          <label><input type="checkbox" name="isFeatured" checked={form.isFeatured} onChange={handleChange} /> Featured</label>
-          <label><input type="checkbox" name="isActive" checked={form.isActive} onChange={handleChange} /> Active</label>
+          <label>
+            <input type="checkbox" name="isFeatured" checked={form.isFeatured} onChange={handleChange} />
+            Featured on homepage
+          </label>
+        </div>
+        <div>
+          <label>
+            <input type="checkbox" name="isActive" checked={form.isActive} onChange={handleChange} />
+            Active (visible in store)
+          </label>
         </div>
       </section>
 
@@ -226,17 +267,19 @@ export default function ArtworkForm({ initialData, onSubmit, loading }) {
         <h3>SEO (Optional)</h3>
         <div>
           <label>SEO Title</label>
-          <input name="seoTitle" value={form.seoTitle} onChange={handleChange} />
+          <input name="seoTitle" value={form.seoTitle} onChange={handleChange} maxLength={70} />
         </div>
         <div>
           <label>SEO Description</label>
-          <textarea name="seoDescription" value={form.seoDescription} onChange={handleChange} rows={2} />
+          <textarea name="seoDescription" value={form.seoDescription} onChange={handleChange} rows={2} maxLength={160} />
         </div>
       </section>
 
-      <button type="submit" disabled={loading}>
-        {loading ? 'Saving...' : initialData ? 'Update Artwork' : 'Create Artwork'}
-      </button>
+      <div>
+        <button type="submit" disabled={loading || uploading}>
+          {loading ? 'Saving...' : initialData ? 'Update Artwork' : 'Create Artwork'}
+        </button>
+      </div>
     </form>
   );
 }

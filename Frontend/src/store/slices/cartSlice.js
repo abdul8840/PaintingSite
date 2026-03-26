@@ -43,18 +43,29 @@ const cartSlice = createSlice({
   },
 });
 
-export const { addToCart, removeFromCart, updateQuantity, clearCart, applyCoupon, removeCoupon } = cartSlice.actions;
+export const {
+  addToCart,
+  removeFromCart,
+  updateQuantity,
+  clearCart,
+  applyCoupon,
+  removeCoupon,
+} = cartSlice.actions;
 
 // Selectors
 export const selectCartItems = (state) => state.cart.items;
-export const selectCartCount = (state) => state.cart.items.reduce((sum, i) => sum + i.quantity, 0);
-export const selectCartSubtotal = (state) => state.cart.items.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+export const selectCartCount = (state) =>
+  state.cart.items.reduce((sum, i) => sum + i.quantity, 0);
+export const selectCartSubtotal = (state) =>
+  state.cart.items.reduce((sum, i) => sum + i.price * i.quantity, 0);
 export const selectCartTotal = (state) => {
-  const subtotal = state.cart.items.reduce((sum, i) => sum + (i.price * i.quantity), 0);
-  const shipping = subtotal > 200 ? 0 : 15;
+  const subtotal = state.cart.items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+  const shipping = subtotal > 200 ? 0 : subtotal === 0 ? 0 : 15;
   const discount = state.cart.couponDiscount || 0;
-  const tax = Math.round((subtotal - discount) * 0.08 * 100) / 100;
-  return { subtotal, shipping, discount, tax, total: Math.round((subtotal - discount + shipping + tax) * 100) / 100 };
+  const taxableAmount = Math.max(0, subtotal - discount);
+  const tax = Math.round(taxableAmount * 0.08 * 100) / 100;
+  const total = Math.round((taxableAmount + shipping + tax) * 100) / 100;
+  return { subtotal, shipping, discount, tax, total };
 };
 
 export default cartSlice.reducer;

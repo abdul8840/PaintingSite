@@ -9,6 +9,8 @@ router.use(protect);
 
 router.post('/', uploadMultiple, uploadImages);
 router.post('/single', uploadSingle, uploadImages);
-router.delete('/:publicId', deleteImage);
+// Handle nested public IDs like "sketchmint/artworks/abc123"
+router.delete('/:folder/:subfolder/:publicId', deleteImage);
+router.delete('/:folder/:publicId', deleteImage);
 
 export default router;
