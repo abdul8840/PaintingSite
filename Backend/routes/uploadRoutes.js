@@ -9,6 +9,6 @@ router.use(protect);
 
 router.post('/', uploadMultiple, uploadImages);
 router.post('/single', uploadSingle, uploadImages);
-router.delete('/:publicId(*)', deleteImage);
+router.delete('/:publicId', deleteImage);
 
 export default router;
