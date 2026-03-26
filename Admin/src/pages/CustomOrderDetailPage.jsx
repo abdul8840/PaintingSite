@@ -1,146 +1,197 @@
-import { useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchCustomOrderById, updateCustomOrder, clearCurrent } from '../store/slices/customOrderSlice';
-import CustomOrderManager from '../components/custom-order/CustomOrderManager';
+import { Link } from 'react-router-dom';
+import { fetchCustomOrders } from '../store/slices/customOrderSlice';
+import DataTable from '../components/common/DataTable';
+import Pagination from '../components/common/Pagination';
 import StatusBadge from '../components/common/StatusBadge';
-import Loader from '../components/common/Loader';
-import { useToast } from '../hooks/useToast';
+import { HiEye, HiClipboardList, HiFilter } from 'react-icons/hi';
 
-export default function CustomOrderDetailPage() {
-  const { id } = useParams();
+export default function CustomOrdersPage() {
   const dispatch = useDispatch();
-  const toast = useToast();
-  const { current: order, loading } = useSelector((state) => state.customOrders);
+  const { items, pagination, loading } = useSelector((state) => state.customOrders);
+  const [page, setPage] = useState(1);
+  const [status, setStatus] = useState('');
 
   useEffect(() => {
-    dispatch(fetchCustomOrderById(id));
-    return () => dispatch(clearCurrent());
-  }, [dispatch, id]);
+    const params = `page=${page}&limit=20${status ? `&status=${status}` : ''}`;
+    dispatch(fetchCustomOrders(params));
+  }, [dispatch, page, status]);
 
-  const handleUpdate = async (data) => {
-    try {
-      await dispatch(updateCustomOrder({ id, data })).unwrap();
-      toast.success('Custom order updated!');
-    } catch (err) {
-      toast.error(err);
-    }
-  };
+  const statusFilters = [
+    { value: '', label: 'All Orders', color: 'gray' },
+    { value: 'pending', label: 'Pending', color: 'yellow' },
+    { value: 'accepted', label: 'Accepted', color: 'blue' },
+    { value: 'in-progress', label: 'In Progress', color: 'purple' },
+    { value: 'review', label: 'Review', color: 'indigo' },
+    { value: 'completed', label: 'Completed', color: 'green' },
+    { value: 'shipped', label: 'Shipped', color: 'teal' },
+    { value: 'delivered', label: 'Delivered', color: 'green' },
+    { value: 'cancelled', label: 'Cancelled', color: 'red' },
+  ];
 
-  if (loading || !order) return <Loader />;
+  const columns = [
+    { 
+      header: 'Order #', 
+      render: (row) => (
+        <Link 
+          to={`/custom-orders/${row._id}`}
+          className="font-mono font-semibold text-gray-900 hover:text-gray-600 transition-colors duration-200 cursor-pointer"
+        >
+          {row.orderNumber}
+        </Link>
+      )
+    },
+    { 
+      header: 'Customer', 
+      render: (row) => (
+        <div>
+          <p className="font-medium text-gray-900">{row.user?.firstName} {row.user?.lastName}</p>
+          <p className="text-xs text-gray-500">{row.user?.email}</p>
+        </div>
+      )
+    },
+    { 
+      header: 'Style', 
+      render: (row) => (
+        <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-700">
+          {row.sketchStyle}
+        </span>
+      )
+    },
+    { 
+      header: 'Size', 
+      render: (row) => (
+        <span className="text-sm text-gray-700">{row.canvasSize}</span>
+      )
+    },
+    { 
+      header: 'Artist', 
+      render: (row) => (
+        <span className={`text-sm ${row.assignedArtist ? 'text-gray-900 font-medium' : 'text-gray-400 italic'}`}>
+          {row.assignedArtist ? `${row.assignedArtist.firstName} ${row.assignedArtist.lastName}` : 'Unassigned'}
+        </span>
+      )
+    },
+    { 
+      header: 'Total', 
+      render: (row) => (
+        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold bg-gray-900 text-white">
+          ${row.totalAmount?.toFixed(2)}
+        </span>
+      )
+    },
+    { 
+      header: 'Status', 
+      render: (row) => <StatusBadge status={row.status} /> 
+    },
+    { 
+      header: 'Date', 
+      render: (row) => (
+        <span className="text-sm text-gray-600">{new Date(row.createdAt).toLocaleDateString()}</span>
+      )
+    },
+    { 
+      header: 'Actions', 
+      render: (row) => (
+        <Link 
+          to={`/custom-orders/${row._id}`}
+          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-900 hover:text-white transition-all duration-200 cursor-pointer text-sm font-medium"
+        >
+          <HiEye className="w-4 h-4" />
+          <span>View</span>
+        </Link>
+      )
+    },
+  ];
 
   return (
-    <div>
-      <div>
-        <h1>Custom Order {order.orderNumber}</h1>
-        <StatusBadge status={order.status} />
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100 p-4 sm:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Header Section */}
+        <div className="mb-6 sm:mb-8">
+          <div>
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 flex items-center gap-3">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center shadow-lg">
+                <HiClipboardList className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
+              </div>
+              Custom Orders
+            </h1>
+            <p className="mt-2 text-sm sm:text-base text-gray-600">
+              Manage custom artwork requests • {pagination?.total || 0} total orders
+            </p>
+          </div>
 
-      <div>
-        {/* Customer */}
-        <div>
-          <h3>Customer</h3>
-          <p>{order.user?.firstName} {order.user?.lastName}</p>
-          <p>{order.user?.email}</p>
+          {/* Stats Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-6">
+            <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200">
+              <p className="text-xs sm:text-sm text-gray-600 mb-1">Total Orders</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900">{pagination?.total || 0}</p>
+            </div>
+            <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200">
+              <p className="text-xs sm:text-sm text-gray-600 mb-1">Pending</p>
+              <p className="text-xl sm:text-2xl font-bold text-yellow-600">
+                {items?.filter(item => item.status === 'pending').length || 0}
+              </p>
+            </div>
+            <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200">
+              <p className="text-xs sm:text-sm text-gray-600 mb-1">In Progress</p>
+              <p className="text-xl sm:text-2xl font-bold text-purple-600">
+                {items?.filter(item => item.status === 'in-progress').length || 0}
+              </p>
+            </div>
+            <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200">
+              <p className="text-xs sm:text-sm text-gray-600 mb-1">Completed</p>
+              <p className="text-xl sm:text-2xl font-bold text-green-600">
+                {items?.filter(item => item.status === 'completed' || item.status === 'delivered').length || 0}
+              </p>
+            </div>
+          </div>
         </div>
 
-        {/* Reference Image */}
-        <div>
-          <h3>Reference Image</h3>
-          <img src={order.referenceImage?.url} alt="Reference" style={{ maxWidth: 400 }} />
-          {order.additionalImages?.length > 0 && (
-            <div>
-              <h4>Additional Images</h4>
-              {order.additionalImages.map((img, i) => (
-                <img key={i} src={img.url} alt="" style={{ width: 100, height: 100, objectFit: 'cover' }} />
-              ))}
+        {/* Filter Section */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6 mb-6">
+          <div className="flex items-center gap-2 mb-4">
+            <HiFilter className="w-5 h-5 text-gray-600" />
+            <h3 className="text-sm sm:text-base font-semibold text-gray-900">Filter by Status</h3>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {statusFilters.map((filter) => (
+              <button 
+                key={filter.value}
+                onClick={() => { setStatus(filter.value); setPage(1); }}
+                className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 cursor-pointer ${
+                  status === filter.value
+                    ? 'bg-gray-900 text-white shadow-lg scale-105'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Table Section */}
+        <div className="bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden">
+          <div className="h-2 bg-gradient-to-r from-gray-800 via-gray-900 to-black"></div>
+          
+          <div className="overflow-x-auto">
+            <DataTable 
+              columns={columns} 
+              data={items} 
+              loading={loading} 
+              emptyMessage="No custom orders found" 
+            />
+          </div>
+
+          {/* Pagination */}
+          {pagination && pagination.pages > 1 && (
+            <div className="border-t border-gray-200 p-4 sm:p-6 bg-gray-50">
+              <Pagination pagination={pagination} onPageChange={setPage} />
             </div>
           )}
         </div>
-
-        {/* Order Details */}
-        <div>
-          <h3>Order Details</h3>
-          <div><span>Style:</span> <span>{order.sketchStyle}</span></div>
-          <div><span>Canvas Size:</span> <span>{order.canvasSize}</span></div>
-          <div><span>Color Style:</span> <span>{order.colorStyle}</span></div>
-          <div><span>Framing:</span> <span>{order.framingOption}</span></div>
-          <div><span>Background:</span> <span>{order.backgroundPreference}</span></div>
-          <div><span>Subjects:</span> <span>{order.numberOfSubjects}</span></div>
-          <div><span>Rush Order:</span> <span>{order.isRushOrder ? 'Yes' : 'No'}</span></div>
-          {order.additionalNotes && <div><span>Notes:</span> <span>{order.additionalNotes}</span></div>}
-        </div>
-
-        {/* Pricing */}
-        <div>
-          <h3>Pricing</h3>
-          <div><span>Base Price:</span> <span>${order.basePrice?.toFixed(2)}</span></div>
-          <div><span>Subtotal:</span> <span>${order.subtotal?.toFixed(2)}</span></div>
-          {order.discount > 0 && <div><span>Discount:</span> <span>-${order.discount.toFixed(2)}</span></div>}
-          <div><span>Shipping:</span> <span>${order.shippingCost?.toFixed(2)}</span></div>
-          <div><span>Tax:</span> <span>${order.tax?.toFixed(2)}</span></div>
-          <div><span>Total:</span> <span>${order.totalAmount?.toFixed(2)}</span></div>
-          <div><span>Payment:</span> <StatusBadge status={order.paymentStatus} /></div>
-        </div>
-
-        {/* Shipping */}
-        {order.shippingAddress && (
-          <div>
-            <h3>Shipping Address</h3>
-            <p>{order.shippingAddress.street}</p>
-            <p>{order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.zipCode}</p>
-          </div>
-        )}
-
-        {/* AI Suggestions */}
-        {order.aiSuggestedStyles?.length > 0 && (
-          <div>
-            <h3>AI Suggested Styles</h3>
-            {order.aiSuggestedStyles.map((s, i) => (
-              <div key={i}>
-                <span>{s.style}</span>
-                <span>{Math.round(s.confidence * 100)}%</span>
-                <span>{s.reason}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Progress Images */}
-        {order.progressImages?.length > 0 && (
-          <div>
-            <h3>Progress Images</h3>
-            {order.progressImages.map((img, i) => (
-              <div key={i}>
-                <img src={img.url} alt={img.stage} style={{ width: 150 }} />
-                <p>{img.stage} - {new Date(img.uploadedAt).toLocaleDateString()}</p>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Final Image */}
-        {order.finalImage?.url && (
-          <div>
-            <h3>Final Artwork</h3>
-            <img src={order.finalImage.url} alt="Final" style={{ maxWidth: 400 }} />
-          </div>
-        )}
-
-        {/* Status History */}
-        <div>
-          <h3>Status History</h3>
-          {order.statusHistory?.map((entry, i) => (
-            <div key={i}>
-              <StatusBadge status={entry.status} />
-              <span>{new Date(entry.date).toLocaleString()}</span>
-              {entry.note && <p>{entry.note}</p>}
-            </div>
-          ))}
-        </div>
-
-        {/* Management Panel */}
-        <CustomOrderManager order={order} onUpdate={handleUpdate} loading={loading} />
       </div>
     </div>
   );
