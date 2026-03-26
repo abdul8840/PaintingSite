@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Review from '../models/Review.js';
 import Order from '../models/Order.js';
 
@@ -7,13 +8,11 @@ export const createReview = async (req, res) => {
   try {
     const { artwork, rating, title, comment } = req.body;
 
-    // Check if already reviewed
     const existing = await Review.findOne({ user: req.user._id, artwork });
     if (existing) {
       return res.status(400).json({ success: false, message: 'You already reviewed this artwork' });
     }
 
-    // Check if purchased (verified purchase)
     const hasPurchased = await Order.findOne({
       user: req.user._id,
       'items.artwork': artwork,
@@ -53,16 +52,17 @@ export const getArtworkReviews = async (req, res) => {
       default: sortOption = { createdAt: -1 };
     }
 
-    const total = await Review.countDocuments({ artwork: req.params.artworkId, isApproved: true });
-    const reviews = await Review.find({ artwork: req.params.artworkId, isApproved: true })
+    const artworkObjectId = new mongoose.Types.ObjectId(req.params.artworkId);
+
+    const total = await Review.countDocuments({ artwork: artworkObjectId, isApproved: true });
+    const reviews = await Review.find({ artwork: artworkObjectId, isApproved: true })
       .populate('user', 'firstName lastName avatar')
       .sort(sortOption)
-      .skip((page - 1) * limit)
+      .skip((parseInt(page) - 1) * parseInt(limit))
       .limit(parseInt(limit));
 
-    // Rating distribution
     const distribution = await Review.aggregate([
-      { $match: { artwork: new (await import('mongoose')).default.Types.ObjectId(req.params.artworkId), isApproved: true } },
+      { $match: { artwork: artworkObjectId, isApproved: true } },
       { $group: { _id: '$rating', count: { $sum: 1 } } },
       { $sort: { _id: -1 } },
     ]);
@@ -72,7 +72,11 @@ export const getArtworkReviews = async (req, res) => {
       reviews,
       total,
       distribution,
-      pagination: { page: parseInt(page), limit: parseInt(limit), pages: Math.ceil(total / limit) },
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        pages: Math.ceil(total / parseInt(limit)),
+      },
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -108,6 +112,9 @@ export const markHelpful = async (req, res) => {
       { $inc: { helpfulCount: 1 } },
       { new: true }
     );
+    if (!review) {
+      return res.status(404).json({ success: false, message: 'Review not found' });
+    }
     res.json({ success: true, helpfulCount: review.helpfulCount });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

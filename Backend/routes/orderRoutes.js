@@ -1,16 +1,16 @@
 import express from 'express';
 import {
   createOrder, getMyOrders, getOrderById,
-  trackOrder, cancelOrder, stripeWebhook, verifySession,
+  trackOrder, cancelOrder, verifySession,
 } from '../controllers/orderController.js';
 import { protect, optionalAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
-router.post('/webhook', express.raw({ type: 'application/json' }), stripeWebhook);
+// Webhook is mounted directly on app in server.js before json parser
+// DO NOT add webhook route here
 
-router.use('/track/:orderNumber', optionalAuth);
-router.get('/track/:orderNumber', trackOrder);
+router.get('/track/:orderNumber', optionalAuth, trackOrder);
 
 router.use(protect);
 
