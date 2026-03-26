@@ -1,7 +1,4 @@
-import { v2 as cloudinary } from "cloudinary";
-import dotenv from "dotenv";
-
-dotenv.config();
+import { v2 as cloudinary } from 'cloudinary';
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -9,39 +6,21 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-export const uploadToCloudinary = async (filePath, folder = "sketchmint") => {
+export const uploadToCloudinary = async (filePath, folder = 'sketchmint') => {
   try {
     const result = await cloudinary.uploader.upload(filePath, {
       folder,
-      resource_type: "auto",
-      transformation: [{ quality: "auto", fetch_format: "auto" }],
+      resource_type: 'auto',
+      transformation: [
+        { quality: 'auto', fetch_format: 'auto' },
+      ],
     });
     return {
       public_id: result.public_id,
       url: result.secure_url,
       width: result.width,
       height: result.height,
-    };
-  } catch (error) {
-    throw new Error(`Cloudinary upload failed: ${error.message}`);
-  }
-};
-
-export const uploadBase64ToCloudinary = async (
-  base64String,
-  folder = "sketchmint"
-) => {
-  try {
-    const result = await cloudinary.uploader.upload(base64String, {
-      folder,
-      resource_type: "auto",
-      transformation: [{ quality: "auto", fetch_format: "auto" }],
-    });
-    return {
-      public_id: result.public_id,
-      url: result.secure_url,
-      width: result.width,
-      height: result.height,
+      format: result.format,
     };
   } catch (error) {
     throw new Error(`Cloudinary upload failed: ${error.message}`);
