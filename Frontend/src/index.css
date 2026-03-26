@@ -283,3 +283,43 @@ body {
 .animate-toast-progress {
   animation: toast-progress 4s linear forwards;
 }
+
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Hide scrollbar for thumbnail strip */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Scrollbar none utility */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Additional animation for chat window on mobile */
+@media (max-width: 639px) {
+  .animate-scale-in.origin-bottom-right {
+    animation: slide-up 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+}
