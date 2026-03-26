@@ -19,11 +19,16 @@ function App() {
   return (
     <ErrorBoundary>
       <ScrollToTop />
-      <Header />
-      <main>
-        <AppRoutes />
-      </main>
-      <Footer />
+      {/* Page shell — flex column so footer always sticks to bottom */}
+      <div className="flex flex-col min-h-screen bg-[var(--color-paper)]">
+        <Header />
+        {/* main grows to fill remaining space */}
+        <main className="flex-1">
+          <AppRoutes />
+        </main>
+        <Footer />
+      </div>
+      {/* Overlays — rendered outside the flow */}
       <Toast />
       <ChatBot />
     </ErrorBoundary>
