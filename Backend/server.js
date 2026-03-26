@@ -21,6 +21,7 @@ import aiRoutes from './routes/aiRoutes.js';
 import chatbotRoutes from './routes/chatbotRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
+import { stripeWebhook } from './controllers/orderController.js';
 
 dotenv.config();
 
@@ -35,19 +36,34 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 app.use(cors({
-  origin: [process.env.CLIENT_URL, process.env.ADMIN_URL],
+  origin: function (origin, callback) {
+    const allowedOrigins = [
+      process.env.CLIENT_URL,
+      process.env.ADMIN_URL,
+    ].filter(Boolean);
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(null, true);
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
+// Stripe webhook MUST be before express.json() - raw body needed
+app.post('/api/orders/webhook', express.raw({ type: 'application/json' }), stripeWebhook);
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
-app.use(mongoSanitize());
 
-// Stripe webhook needs raw body - handled before json parsing in order routes
-app.post('/api/orders/webhook', express.raw({ type: 'application/json' }));
+app.use(
+  mongoSanitize({
+    replaceWith: '_'
+  })
+);
 
 // Routes
 app.use('/api/auth', authRoutes);
