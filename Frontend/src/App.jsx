@@ -5,7 +5,9 @@ import Header from './components/layout/Header';
 import Footer from './components/layout/Footer';
 import Toast from './components/common/Toast';
 import ChatBot from './components/chat/ChatBot';
+import ErrorBoundary from './components/common/ErrorBoundary';
 import { checkAuthStatus } from './store/slices/authSlice';
+import { ScrollToTop } from './components/common/ScrollToTop';
 
 function App() {
   const dispatch = useDispatch();
@@ -15,7 +17,8 @@ function App() {
   }, [dispatch]);
 
   return (
-    <div>
+    <ErrorBoundary>
+      <ScrollToTop />
       <Header />
       <main>
         <AppRoutes />
@@ -23,7 +26,7 @@ function App() {
       <Footer />
       <Toast />
       <ChatBot />
-    </div>
+    </ErrorBoundary>
   );
 }
 
