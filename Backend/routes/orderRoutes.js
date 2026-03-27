@@ -1,17 +1,20 @@
 import express from 'express';
 import {
-  createOrder, getMyOrders, getOrderById,
-  trackOrder, cancelOrder, verifySession,
+  createOrder,
+  getMyOrders,
+  getOrderById,
+  trackOrder,
+  cancelOrder,
+  verifySession,
 } from '../controllers/orderController.js';
 import { protect, optionalAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Webhook is mounted directly on app in server.js before json parser
-// DO NOT add webhook route here
-
+// Public routes
 router.get('/track/:orderNumber', optionalAuth, trackOrder);
 
+// Protected routes
 router.use(protect);
 
 router.post('/', createOrder);

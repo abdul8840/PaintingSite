@@ -21,20 +21,36 @@ class ApiClient {
 
     try {
       const response = await fetch(`${BASE_URL}${endpoint}`, config);
-      const data = await response.json();
+      
+      // Try to parse JSON response
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        data = { message: 'Invalid server response' };
+      }
 
       if (!response.ok) {
         throw {
           status: response.status,
-          message: data.message || 'Something went wrong',
+          message: data.message || data.error || 'Something went wrong',
           data,
         };
       }
 
       return data;
     } catch (error) {
-      if (error.status) throw error;
-      throw { status: 500, message: error.message || 'Network error' };
+      console.error('API Client Error:', error);
+      
+      if (error.status) {
+        throw error;
+      }
+      
+      throw { 
+        status: 500, 
+        message: error.message || 'Network error',
+        data: null,
+      };
     }
   }
 

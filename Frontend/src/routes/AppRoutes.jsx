@@ -71,8 +71,6 @@ export default function AppRoutes() {
           element={<PageWrapper><ArtworkDetailPage /></PageWrapper>} />
         <Route path="/category/:slug"
           element={<PageWrapper><CategoryPage /></PageWrapper>} />
-        <Route path="/cart"
-          element={<PageWrapper><CartPage /></PageWrapper>} />
         <Route path="/custom-painting"
           element={<PageWrapper><CustomPaintingPage /></PageWrapper>} />
         <Route path="/track-order"
@@ -113,6 +111,13 @@ export default function AppRoutes() {
         />
 
         {/* ── Protected routes ── */}
+        <Route path="/cart"
+          element={
+            <ProtectedRoute>
+              <PageWrapper><CartPage /></PageWrapper>
+            </ProtectedRoute>
+          }
+        />
         <Route path="/checkout"
           element={
             <ProtectedRoute>

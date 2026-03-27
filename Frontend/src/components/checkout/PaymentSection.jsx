@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { loadStripe } from '@stripe/stripe-js';
 import { useToast } from '../../hooks/useToast';
 import {
   HiCreditCard,

@@ -80,9 +80,19 @@ export default function CustomPaintingPage() {
   const debouncedStyle = useDebounce(sketchStyle, 300);
   const debouncedFrame = useDebounce(framingOption, 300);
 
+  // Auto calculate price - fix: use actual state values not debounced
   useEffect(() => {
-    dispatch(calculateCustomPrice({ canvasSize, customSize, sketchStyle, framingOption, numberOfSubjects, isRushOrder }));
-  }, [dispatch, debouncedSize, debouncedStyle, debouncedFrame, numberOfSubjects, isRushOrder]);
+    if (canvasSize && sketchStyle) {
+      dispatch(calculateCustomPrice({
+        canvasSize,
+        customSize: canvasSize === 'custom' ? customSize : undefined,
+        sketchStyle,
+        framingOption,
+        numberOfSubjects,
+        isRushOrder,
+      }));
+    }
+  }, [dispatch, canvasSize, customSize?.width, customSize?.height, sketchStyle, framingOption, numberOfSubjects, isRushOrder]);
 
   const handleSubmit = async () => {
     if (!isAuthenticated) { toast.error('Please login to place an order'); navigate('/login'); return; }
