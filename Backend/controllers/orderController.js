@@ -69,7 +69,7 @@ export const createOrder = async (req, res) => {
     }
 
     const shippingCost = subtotal > 2000 ? 0 : 150;
-    const tax = Math.round((subtotal - discount) * 0.18 * 100) / 100; // 18% GST
+    const tax = Math.round((subtotal - discount) * 0.18 * 100) / 100;
     const totalAmount = Math.round((subtotal - discount + shippingCost + tax) * 100) / 100;
 
     const order = new Order({
@@ -131,16 +131,19 @@ export const createOrder = async (req, res) => {
         });
       } catch (razorpayError) {
         console.error('Razorpay order error:', razorpayError.message);
+        // Delete the order if Razorpay order creation fails
         await Order.findByIdAndDelete(order._id);
         return res.status(500).json({
           success: false,
           message: 'Payment initialization failed. Please try again.',
+          error: process.env.NODE_ENV === 'development' ? razorpayError.message : undefined,
         });
       }
     }
 
     // COD
     order.orderStatus = 'confirmed';
+    order.paymentStatus = 'pending';
     order.statusHistory.push({ status: 'confirmed', note: 'Cash on delivery order confirmed', date: new Date() });
     await order.save();
 
@@ -179,7 +182,6 @@ export const verifyPayment = async (req, res) => {
     const isAuthentic = expectedSignature === razorpay_signature;
 
     if (!isAuthentic) {
-      // Update order as failed
       if (orderId) {
         await Order.findByIdAndUpdate(orderId, {
           paymentStatus: 'failed',
@@ -189,8 +191,12 @@ export const verifyPayment = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Payment verification failed' });
     }
 
-    // Find order by razorpay order id
-    const order = await Order.findOne({ razorpayOrderId: razorpay_order_id });
+    // Find order by either razorpay order id or orderId
+    let order = await Order.findOne({ razorpayOrderId: razorpay_order_id });
+    
+    if (!order && orderId) {
+      order = await Order.findById(orderId);
+    }
 
     if (!order) {
       return res.status(404).json({ success: false, message: 'Order not found' });
@@ -214,11 +220,13 @@ export const verifyPayment = async (req, res) => {
 
     await order.save();
 
-    // Decrease stock
-    for (const item of order.items) {
-      await Artwork.findByIdAndUpdate(item.artwork, {
-        $inc: { stock: -item.quantity, sold: item.quantity },
-      });
+    // Decrease stock (if not already decreased for COD)
+    if (order.paymentMethod !== 'cod') {
+      for (const item of order.items) {
+        await Artwork.findByIdAndUpdate(item.artwork, {
+          $inc: { stock: -item.quantity, sold: item.quantity },
+        });
+      }
     }
 
     // Send confirmation email
