@@ -1,42 +1,14 @@
 import StatsCard from '../common/StatsCard';
 import { HiUsers, HiPhotograph, HiShoppingBag, HiCurrencyDollar } from 'react-icons/hi';
+import { formatPrice } from '../../utils/currency';
 
 export default function QuickStats({ stats = {} }) {
-  const monthlyRevenue = stats.monthlyRevenue || 0;
-  const revenueGrowth = stats.revenueGrowth || 0;
-  const totalOrders = stats.totalOrders || 0;
-  const pendingOrders = stats.pendingOrders || 0;
-  const totalArtworks = stats.totalArtworks || 0;
-  const totalUsers = stats.totalUsers || 0;
-  const newUsersThisMonth = stats.newUsersThisMonth || 0;
-
   return (
     <div>
-      <StatsCard
-        title="Monthly Revenue"
-        value={`$${monthlyRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-        icon={HiCurrencyDollar}
-        change={Math.abs(revenueGrowth)}
-        changeType={revenueGrowth >= 0 ? 'increase' : 'decrease'}
-        subtitle="This month"
-      />
-      <StatsCard
-        title="Total Orders"
-        value={totalOrders.toLocaleString()}
-        icon={HiShoppingBag}
-        subtitle={`${pendingOrders} pending`}
-      />
-      <StatsCard
-        title="Total Artworks"
-        value={totalArtworks.toLocaleString()}
-        icon={HiPhotograph}
-      />
-      <StatsCard
-        title="Total Customers"
-        value={totalUsers.toLocaleString()}
-        icon={HiUsers}
-        subtitle={`${newUsersThisMonth} new this month`}
-      />
+      <StatsCard title="Monthly Revenue" value={formatPrice(stats.monthlyRevenue || 0)} icon={HiCurrencyDollar} change={Math.abs(stats.revenueGrowth || 0)} changeType={(stats.revenueGrowth || 0) >= 0 ? 'increase' : 'decrease'} subtitle="This month" />
+      <StatsCard title="Total Orders" value={(stats.totalOrders || 0).toLocaleString()} icon={HiShoppingBag} subtitle={`${stats.pendingOrders || 0} pending`} />
+      <StatsCard title="Total Artworks" value={(stats.totalArtworks || 0).toLocaleString()} icon={HiPhotograph} />
+      <StatsCard title="Total Customers" value={(stats.totalUsers || 0).toLocaleString()} icon={HiUsers} subtitle={`${stats.newUsersThisMonth || 0} new this month`} />
     </div>
   );
 }

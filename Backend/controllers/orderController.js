@@ -1,45 +1,37 @@
+import crypto from 'crypto';
 import Order from '../models/Order.js';
 import Artwork from '../models/Artwork.js';
 import Coupon from '../models/Coupon.js';
 import User from '../models/User.js';
 import CustomOrder from '../models/CustomOrder.js';
-import stripe from '../config/stripe.js';
+import razorpay from '../config/razorpay.js';
 import { sendOrderConfirmation, sendStatusUpdate } from '../utils/emailService.js';
 
-// @desc    Create order / checkout session
+// @desc    Create order + Razorpay order
 // @route   POST /api/orders
 export const createOrder = async (req, res) => {
   try {
-    const { items, shippingAddress, couponCode, paymentMethod = 'stripe' } = req.body;
+    const { items, shippingAddress, couponCode, paymentMethod = 'razorpay' } = req.body;
 
-    console.log('Creating order with data:', { items, shippingAddress, couponCode, paymentMethod });
-
-    // Validation
     if (!items || items.length === 0) {
       return res.status(400).json({ success: false, message: 'No items in order' });
     }
 
-    if (!shippingAddress) {
+    if (!shippingAddress || !shippingAddress.street) {
       return res.status(400).json({ success: false, message: 'Shipping address is required' });
     }
 
-    // Build order items and calculate subtotal
+    // Validate items and calculate subtotal
     let subtotal = 0;
     const orderItems = [];
 
     for (const item of items) {
       const artwork = await Artwork.findById(item.artwork);
       if (!artwork) {
-        return res.status(404).json({ 
-          success: false, 
-          message: `Artwork not found: ${item.artwork}` 
-        });
+        return res.status(404).json({ success: false, message: `Artwork not found: ${item.artwork}` });
       }
       if (artwork.stock < item.quantity) {
-        return res.status(400).json({ 
-          success: false, 
-          message: `${artwork.title} is out of stock` 
-        });
+        return res.status(400).json({ success: false, message: `${artwork.title} is out of stock` });
       }
 
       orderItems.push({
@@ -53,7 +45,7 @@ export const createOrder = async (req, res) => {
       subtotal += artwork.price * item.quantity;
     }
 
-    // Apply coupon if provided
+    // Apply coupon
     let discount = 0;
     let couponData = null;
 
@@ -69,33 +61,17 @@ export const createOrder = async (req, res) => {
       }
 
       if (coupon.applicableTo !== 'all' && coupon.applicableTo !== 'artwork') {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Coupon not applicable to artwork orders' 
-        });
+        return res.status(400).json({ success: false, message: 'Coupon not applicable to artwork orders' });
       }
 
       discount = coupon.calculateDiscount(subtotal);
       couponData = { code: coupon.code, discount };
     }
 
-    // Calculate totals - ensure all values are valid numbers
-    const shippingCost = subtotal > 200 ? 0 : 15;
-    const taxableAmount = Math.max(0, subtotal - discount);
-    const tax = Math.round(taxableAmount * 0.08 * 100) / 100;
+    const shippingCost = subtotal > 2000 ? 0 : 150;
+    const tax = Math.round((subtotal - discount) * 0.18 * 100) / 100; // 18% GST
     const totalAmount = Math.round((subtotal - discount + shippingCost + tax) * 100) / 100;
 
-    console.log('Order totals:', { subtotal, discount, shippingCost, tax, totalAmount });
-
-    // Validate totals
-    if (totalAmount <= 0) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Invalid order total amount' 
-      });
-    }
-
-    // Create order
     const order = new Order({
       user: req.user._id,
       items: orderItems,
@@ -110,7 +86,6 @@ export const createOrder = async (req, res) => {
     });
 
     await order.save();
-    console.log('Order created:', order._id);
 
     // Update coupon usage
     if (couponCode) {
@@ -123,46 +98,39 @@ export const createOrder = async (req, res) => {
       );
     }
 
-    // Handle Stripe payment
-    if (paymentMethod === 'stripe') {
+    if (paymentMethod === 'razorpay') {
       try {
-        const session = await stripe.checkout.sessions.create({
-          payment_method_types: ['card'],
-          mode: 'payment',
-          customer_email: req.user.email,
-          client_reference_id: order._id.toString(),
-          line_items: orderItems.map(item => ({
-            price_data: {
-              currency: 'usd',
-              product_data: {
-                name: item.title,
-                images: item.image ? [item.image] : [],
-              },
-              unit_amount: Math.round(item.price * 100),
-            },
-            quantity: item.quantity,
-          })),
-          metadata: {
+        // Create Razorpay order (amount in paise)
+        const razorpayOrder = await razorpay.orders.create({
+          amount: Math.round(totalAmount * 100),
+          currency: 'INR',
+          receipt: order.orderNumber,
+          notes: {
             orderId: order._id.toString(),
             type: 'artwork-order',
+            customerEmail: req.user.email,
           },
-          success_url: `${process.env.CLIENT_URL}/order-success?session_id={CHECKOUT_SESSION_ID}`,
-          cancel_url: `${process.env.CLIENT_URL}/cart`,
         });
 
-        order.stripeSessionId = session.id;
+        order.razorpayOrderId = razorpayOrder.id;
         await order.save();
 
         return res.json({
           success: true,
-          order: order._id,
-          orderNumber: order.orderNumber,
-          sessionId: session.id,
-          url: session.url,
+          order: {
+            _id: order._id,
+            orderNumber: order.orderNumber,
+            totalAmount: order.totalAmount,
+          },
+          razorpayOrder: {
+            id: razorpayOrder.id,
+            amount: razorpayOrder.amount,
+            currency: razorpayOrder.currency,
+          },
+          keyId: process.env.RAZORPAY_KEY_ID,
         });
-      } catch (stripeError) {
-        console.error('Stripe session error:', stripeError.message);
-        // Delete the order if stripe fails
+      } catch (razorpayError) {
+        console.error('Razorpay order error:', razorpayError.message);
         await Order.findByIdAndDelete(order._id);
         return res.status(500).json({
           success: false,
@@ -171,156 +139,179 @@ export const createOrder = async (req, res) => {
       }
     }
 
-    // COD payment
+    // COD
     order.orderStatus = 'confirmed';
-    order.statusHistory.push({ 
-      status: 'confirmed', 
-      note: 'Cash on delivery order confirmed' 
-    });
+    order.statusHistory.push({ status: 'confirmed', note: 'Cash on delivery order confirmed', date: new Date() });
     await order.save();
 
-    // Decrease stock
     for (const item of orderItems) {
       await Artwork.findByIdAndUpdate(item.artwork, {
         $inc: { stock: -item.quantity, sold: item.quantity },
       });
     }
 
-    // Send confirmation email
-    try {
-      await sendOrderConfirmation(order, req.user.email);
-    } catch (emailError) {
-      console.error('Email error:', emailError);
-      // Continue even if email fails
-    }
+    await sendOrderConfirmation(order, req.user.email);
 
     res.status(201).json({ success: true, order });
   } catch (error) {
-    console.error('Order creation error:', error);
+    console.error('Create order error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-
-// @desc    Stripe webhook handler
-// @route   POST /api/orders/webhook (mounted directly in server.js)
-export const stripeWebhook = async (req, res) => {
-  const sig = req.headers['stripe-signature'];
-  let event;
-
+// @desc    Verify Razorpay payment
+// @route   POST /api/orders/verify-payment
+export const verifyPayment = async (req, res) => {
   try {
-    event = stripe.webhooks.constructEvent(
-      req.body, 
-      sig, 
-      process.env.STRIPE_WEBHOOK_SECRET
-    );
-  } catch (err) {
-    console.error('Webhook signature verification failed:', err.message);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
-  }
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderId } = req.body;
 
-  try {
-    switch (event.type) {
-      case 'checkout.session.completed': {
-        const session = event.data.object;
-        const orderId = session.metadata.orderId;
-        const orderType = session.metadata.type;
-
-        if (orderType === 'artwork-order') {
-          const order = await Order.findById(orderId);
-          if (order && order.paymentStatus !== 'paid') {
-            order.paymentStatus = 'paid';
-            order.orderStatus = 'confirmed';
-            order.stripePaymentIntentId = session.payment_intent;
-            order.statusHistory.push({ 
-              status: 'confirmed', 
-              note: 'Payment received via Stripe' 
-            });
-            await order.save();
-
-            // Decrease stock
-            for (const item of order.items) {
-              await Artwork.findByIdAndUpdate(item.artwork, {
-                $inc: { stock: -item.quantity, sold: item.quantity },
-              });
-            }
-
-            // Send confirmation email
-            const user = await User.findById(order.user);
-            if (user) {
-              await sendOrderConfirmation(order, user.email);
-            }
-          }
-        } else if (orderType === 'custom-order') {
-          const customOrder = await CustomOrder.findById(orderId);
-          if (customOrder && customOrder.paymentStatus !== 'paid') {
-            customOrder.paymentStatus = 'paid';
-            customOrder.status = 'accepted';
-            customOrder.stripePaymentIntentId = session.payment_intent;
-            customOrder.statusHistory.push({ 
-              status: 'accepted', 
-              note: 'Payment received via Stripe' 
-            });
-            await customOrder.save();
-          }
-        }
-        break;
-      }
-
-      case 'payment_intent.payment_failed': {
-        const paymentIntent = event.data.object;
-        const order = await Order.findOne({ 
-          stripePaymentIntentId: paymentIntent.id 
-        });
-        if (order) {
-          order.paymentStatus = 'failed';
-          order.statusHistory.push({ 
-            status: 'failed', 
-            note: 'Payment failed' 
-          });
-          await order.save();
-        }
-        break;
-      }
-
-      default:
-        console.log(`Unhandled event type: ${event.type}`);
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return res.status(400).json({ success: false, message: 'Missing payment verification data' });
     }
-  } catch (err) {
-    console.error('Webhook processing error:', err.message);
-    return res.status(500).json({ error: 'Webhook handler failed' });
-  }
 
-  res.json({ received: true });
+    // Verify signature
+    const body = razorpay_order_id + '|' + razorpay_payment_id;
+    const expectedSignature = crypto
+      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+      .update(body.toString())
+      .digest('hex');
+
+    const isAuthentic = expectedSignature === razorpay_signature;
+
+    if (!isAuthentic) {
+      // Update order as failed
+      if (orderId) {
+        await Order.findByIdAndUpdate(orderId, {
+          paymentStatus: 'failed',
+          $push: { statusHistory: { status: 'failed', note: 'Payment verification failed', date: new Date() } },
+        });
+      }
+      return res.status(400).json({ success: false, message: 'Payment verification failed' });
+    }
+
+    // Find order by razorpay order id
+    const order = await Order.findOne({ razorpayOrderId: razorpay_order_id });
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    // Prevent double processing
+    if (order.paymentStatus === 'paid') {
+      return res.json({ success: true, order, message: 'Payment already verified' });
+    }
+
+    // Update order
+    order.paymentStatus = 'paid';
+    order.orderStatus = 'confirmed';
+    order.razorpayPaymentId = razorpay_payment_id;
+    order.razorpaySignature = razorpay_signature;
+    order.statusHistory.push({
+      status: 'confirmed',
+      note: 'Payment verified via Razorpay',
+      date: new Date(),
+    });
+
+    await order.save();
+
+    // Decrease stock
+    for (const item of order.items) {
+      await Artwork.findByIdAndUpdate(item.artwork, {
+        $inc: { stock: -item.quantity, sold: item.quantity },
+      });
+    }
+
+    // Send confirmation email
+    const user = await User.findById(order.user);
+    if (user) {
+      await sendOrderConfirmation(order, user.email);
+    }
+
+    res.json({ success: true, order });
+  } catch (error) {
+    console.error('Verify payment error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Verify custom order payment
+// @route   POST /api/orders/verify-custom-payment
+export const verifyCustomPayment = async (req, res) => {
+  try {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderId } = req.body;
+
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return res.status(400).json({ success: false, message: 'Missing payment data' });
+    }
+
+    const body = razorpay_order_id + '|' + razorpay_payment_id;
+    const expectedSignature = crypto
+      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+      .update(body.toString())
+      .digest('hex');
+
+    if (expectedSignature !== razorpay_signature) {
+      return res.status(400).json({ success: false, message: 'Payment verification failed' });
+    }
+
+    const customOrder = await CustomOrder.findById(orderId);
+    if (!customOrder) {
+      return res.status(404).json({ success: false, message: 'Custom order not found' });
+    }
+
+    if (customOrder.paymentStatus === 'paid') {
+      return res.json({ success: true, order: customOrder });
+    }
+
+    customOrder.paymentStatus = 'paid';
+    customOrder.status = 'accepted';
+    customOrder.razorpayPaymentId = razorpay_payment_id;
+    customOrder.razorpaySignature = razorpay_signature;
+    customOrder.statusHistory.push({
+      status: 'accepted',
+      note: 'Payment verified via Razorpay',
+      date: new Date(),
+    });
+
+    await customOrder.save();
+
+    const user = await User.findById(customOrder.user);
+    if (user) {
+      const { sendCustomOrderConfirmation } = await import('../utils/emailService.js');
+      await sendCustomOrderConfirmation(customOrder, user.email);
+    }
+
+    res.json({ success: true, order: customOrder });
+  } catch (error) {
+    console.error('Verify custom payment error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
 };
 
 // @desc    Get user orders
 // @route   GET /api/orders/my-orders
 export const getMyOrders = async (req, res) => {
   try {
-    const { page = 1, limit = 10, status } = req.query;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const { status } = req.query;
+
     const filter = { user: req.user._id };
     if (status) filter.orderStatus = status;
 
     const total = await Order.countDocuments(filter);
     const orders = await Order.find(filter)
       .sort({ createdAt: -1 })
-      .skip((parseInt(page) - 1) * parseInt(limit))
-      .limit(parseInt(limit))
+      .skip((page - 1) * limit)
+      .limit(limit)
       .lean();
 
     res.json({
       success: true,
       orders,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / parseInt(limit)),
-      },
+      pagination: { page, limit, total, pages: Math.ceil(total / limit) },
     });
   } catch (error) {
-    console.error('Get orders error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -337,21 +328,17 @@ export const getOrderById = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
 
-    if (
-      order.user._id.toString() !== req.user._id.toString() && 
-      req.user.role !== 'admin'
-    ) {
+    if (order.user._id.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
       return res.status(403).json({ success: false, message: 'Not authorized' });
     }
 
     res.json({ success: true, order });
   } catch (error) {
-    console.error('Get order error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// @desc    Get order by order number
+// @desc    Track order by number
 // @route   GET /api/orders/track/:orderNumber
 export const trackOrder = async (req, res) => {
   try {
@@ -364,7 +351,6 @@ export const trackOrder = async (req, res) => {
 
     res.json({ success: true, order });
   } catch (error) {
-    console.error('Track order error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -378,27 +364,18 @@ export const cancelOrder = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
 
-    if (
-      order.user.toString() !== req.user._id.toString() && 
-      req.user.role !== 'admin'
-    ) {
+    if (order.user.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
       return res.status(403).json({ success: false, message: 'Not authorized' });
     }
 
     if (['shipped', 'delivered', 'cancelled'].includes(order.orderStatus)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Cannot cancel this order' 
-      });
+      return res.status(400).json({ success: false, message: 'Cannot cancel this order' });
     }
 
     order.orderStatus = 'cancelled';
     order.cancelledAt = new Date();
     order.cancellationReason = req.body.reason || 'Cancelled by user';
-    order.statusHistory.push({ 
-      status: 'cancelled', 
-      note: order.cancellationReason 
-    });
+    order.statusHistory.push({ status: 'cancelled', note: order.cancellationReason, date: new Date() });
 
     // Restore stock
     for (const item of order.items) {
@@ -407,70 +384,22 @@ export const cancelOrder = async (req, res) => {
       });
     }
 
-    // Process refund if paid via Stripe
-    if (order.paymentStatus === 'paid' && order.stripePaymentIntentId) {
+    // Razorpay refund
+    if (order.paymentStatus === 'paid' && order.razorpayPaymentId) {
       try {
-        await stripe.refunds.create({ 
-          payment_intent: order.stripePaymentIntentId 
+        await razorpay.payments.refund(order.razorpayPaymentId, {
+          amount: Math.round(order.totalAmount * 100),
+          notes: { reason: order.cancellationReason, orderNumber: order.orderNumber },
         });
         order.paymentStatus = 'refunded';
       } catch (refundErr) {
-        console.error('Refund error:', refundErr.message);
-        // Continue with cancellation even if refund fails
+        console.error('Razorpay refund error:', refundErr.message);
       }
-    }
-
-    // Revert coupon usage
-    if (order.coupon) {
-      await Coupon.findOneAndUpdate(
-        { code: order.coupon.code },
-        {
-          $inc: { usedCount: -1 },
-          $pull: { usedBy: { user: req.user._id } },
-        }
-      );
     }
 
     await order.save();
     res.json({ success: true, order });
   } catch (error) {
-    console.error('Cancel order error:', error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-// @desc    Verify payment session
-// @route   GET /api/orders/verify-session/:sessionId
-export const verifySession = async (req, res) => {
-  try {
-    const session = await stripe.checkout.sessions.retrieve(req.params.sessionId);
-
-    // Check both order types
-    let order = await Order.findOne({ stripeSessionId: session.id });
-    let orderType = 'artwork';
-
-    if (!order) {
-      order = await CustomOrder.findOne({ stripeSessionId: session.id });
-      orderType = 'custom';
-    }
-
-    if (!order) {
-      return res.status(404).json({ success: false, message: 'Order not found' });
-    }
-
-    res.json({
-      success: true,
-      orderType,
-      order: {
-        _id: order._id,
-        orderNumber: order.orderNumber,
-        totalAmount: order.totalAmount,
-        paymentStatus: order.paymentStatus,
-        orderStatus: order.orderStatus || order.status,
-      },
-    });
-  } catch (error) {
-    console.error('Verify session error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };

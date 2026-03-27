@@ -128,26 +128,13 @@ const orderSchema = new mongoose.Schema({
     required: true,
     min: 0,
   },
-  paymentMethod: {
-    type: String,
-    enum: ['stripe', 'cod'],
-    default: 'stripe',
-    required: true,
-  },
-  paymentStatus: {
-    type: String,
-    enum: ['pending', 'paid', 'failed', 'refunded'],
-    default: 'pending',
-    index: true,
-  },
-  stripePaymentIntentId: {
-    type: String,
-    sparse: true,
-  },
-  stripeSessionId: {
-    type: String,
-    sparse: true,
-  },
+  currency: { type: String, default: 'INR' },
+  paymentMethod: { type: String, enum: ['razorpay', 'cod'], default: 'razorpay' },
+  paymentStatus: { type: String, enum: ['pending', 'paid', 'failed', 'refunded'], default: 'pending' },
+  // Razorpay fields
+  razorpayOrderId: String,
+  razorpayPaymentId: String,
+  razorpaySignature: String,
   orderStatus: {
     type: String,
     enum: ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'returned'],
@@ -412,8 +399,7 @@ orderSchema.index({ user: 1, createdAt: -1 });
 orderSchema.index({ orderNumber: 1 });
 orderSchema.index({ orderStatus: 1, createdAt: -1 });
 orderSchema.index({ paymentStatus: 1, createdAt: -1 });
-orderSchema.index({ stripeSessionId: 1 }, { sparse: true });
-orderSchema.index({ stripePaymentIntentId: 1 }, { sparse: true });
+orderSchema.index({ razorpayOrderId: 1 });
 orderSchema.index({ createdAt: -1 });
 orderSchema.index({ user: 1, orderStatus: 1 });
 orderSchema.index({ user: 1, paymentStatus: 1 });

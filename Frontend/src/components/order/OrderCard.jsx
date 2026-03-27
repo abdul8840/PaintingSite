@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { HiArrowRight, HiPhotograph } from 'react-icons/hi';
 import Badge from '../common/Badge';
+import { formatPrice } from '../../utils/currency';
 
 const statusVariants = {
   pending: 'warning',
@@ -143,12 +144,7 @@ export default function OrderCard({ order, isCustom = false }) {
           border-t border-cream
         "
       >
-        <p className="text-sm font-bold text-ink">
-          Total:{' '}
-          <span className="text-base tracking-tight">
-            ${order.totalAmount?.toFixed(2)}
-          </span>
-        </p>
+        <p>Total: <strong>{formatPrice(order.totalAmount)}</strong></p>
         <Link
           to={detailUrl}
           className="

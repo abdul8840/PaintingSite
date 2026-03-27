@@ -1,25 +1,20 @@
 import express from 'express';
 import {
-  createOrder,
-  getMyOrders,
-  getOrderById,
-  trackOrder,
-  cancelOrder,
-  verifySession,
+  createOrder, verifyPayment, verifyCustomPayment,
+  getMyOrders, getOrderById, trackOrder, cancelOrder,
 } from '../controllers/orderController.js';
 import { protect, optionalAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Public routes
 router.get('/track/:orderNumber', optionalAuth, trackOrder);
 
-// Protected routes
 router.use(protect);
 
 router.post('/', createOrder);
+router.post('/verify-payment', verifyPayment);
+router.post('/verify-custom-payment', verifyCustomPayment);
 router.get('/my-orders', getMyOrders);
-router.get('/verify-session/:sessionId', verifySession);
 router.get('/:id', getOrderById);
 router.put('/:id/cancel', cancelOrder);
 

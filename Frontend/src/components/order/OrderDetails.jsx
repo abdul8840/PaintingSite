@@ -1,6 +1,7 @@
 import { HiExternalLink, HiPhotograph } from 'react-icons/hi';
 import Badge from '../common/Badge';
 import OrderTimeline from './OrderTimeline';
+import { formatPrice } from '../../utils/currency';
 
 const statusVariants = {
   pending: 'warning',

@@ -15,6 +15,7 @@ import AiStyleSuggester from '../components/custom/AiStyleSuggester';
 import AddressForm from '../components/checkout/AddressForm';
 import Breadcrumb from '../components/common/Breadcrumb';
 import { HiPhotograph, HiSparkles, HiCube, HiViewBoards, HiAdjustments, HiLocationMarker, HiEye, HiArrowLeft, HiArrowRight, HiShieldCheck, HiCreditCard, HiCheck, HiPencil } from 'react-icons/hi';
+import orderApi from '../api/orderApi';
 
 const STYLE_LABELS = {
   'pencil-sketch': 'Pencil Sketch',
@@ -94,7 +95,7 @@ export default function CustomPaintingPage() {
     }
   }, [dispatch, canvasSize, customSize?.width, customSize?.height, sketchStyle, framingOption, numberOfSubjects, isRushOrder]);
 
-  const handleSubmit = async () => {
+    const handleSubmit = async () => {
     if (!isAuthenticated) { toast.error('Please login to place an order'); navigate('/login'); return; }
     if (!referenceImage) { toast.error('Please upload a reference image'); return; }
     if (!shippingAddress) { toast.error('Please add a shipping address'); return; }
@@ -115,7 +116,42 @@ export default function CustomPaintingPage() {
         aiSuggestedStyles: aiSuggestions,
       })).unwrap();
 
-      if (res.url) window.location.href = res.url;
+      if (res.razorpayOrder) {
+        // Open Razorpay
+        const options = {
+          key: res.keyId,
+          amount: res.razorpayOrder.amount,
+          currency: res.razorpayOrder.currency,
+          name: 'SketchMint',
+          description: `Custom ${sketchStyle.replace(/-/g, ' ')} - ${canvasSize}`,
+          order_id: res.razorpayOrder.id,
+          handler: async function (response) {
+            try {
+              const verifyRes = await orderApi.verifyCustomPayment({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                orderId: res.order._id,
+              });
+              if (verifyRes.success) {
+                toast.success('Payment successful!');
+                navigate(`/order-success?orderId=${res.order._id}&type=custom`);
+              }
+            } catch (err) {
+              toast.error('Payment verification failed');
+            }
+          },
+          prefill: {
+            name: `${user.firstName} ${user.lastName}`,
+            email: user.email,
+            contact: user.phone || '',
+          },
+          theme: { color: '#4f46e5' },
+        };
+
+        const rzp = new window.Razorpay(options);
+        rzp.open();
+      }
     } catch (err) {
       toast.error(err || 'Failed to create order');
     }

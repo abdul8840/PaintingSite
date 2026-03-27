@@ -1,15 +1,15 @@
 const SIZE_PRICES = {
-  '8x10': { base: 79, multiplier: 1 },
-  '11x14': { base: 109, multiplier: 1.3 },
-  '12x16': { base: 129, multiplier: 1.5 },
-  '16x20': { base: 169, multiplier: 1.8 },
-  '18x24': { base: 199, multiplier: 2.1 },
-  '20x24': { base: 229, multiplier: 2.3 },
-  '24x30': { base: 279, multiplier: 2.7 },
-  '24x36': { base: 319, multiplier: 3.0 },
-  '30x40': { base: 399, multiplier: 3.5 },
-  '36x48': { base: 499, multiplier: 4.2 },
-  'custom': { base: 149, multiplier: 1.5 },
+  '8x10': { base: 799, multiplier: 1 },
+  '11x14': { base: 1099, multiplier: 1.3 },
+  '12x16': { base: 1299, multiplier: 1.5 },
+  '16x20': { base: 1699, multiplier: 1.8 },
+  '18x24': { base: 1999, multiplier: 2.1 },
+  '20x24': { base: 2299, multiplier: 2.3 },
+  '24x30': { base: 2799, multiplier: 2.7 },
+  '24x36': { base: 3199, multiplier: 3.0 },
+  '30x40': { base: 3999, multiplier: 3.5 },
+  '36x48': { base: 4999, multiplier: 4.2 },
+  'custom': { base: 1499, multiplier: 1.5 },
 };
 
 const STYLE_MULTIPLIERS = {
@@ -27,19 +27,19 @@ const STYLE_MULTIPLIERS = {
 
 const FRAME_PRICES = {
   'no-frame': 0,
-  'basic-black': 29,
-  'basic-white': 29,
-  'wooden-natural': 49,
-  'wooden-dark': 49,
-  'golden-classic': 79,
-  'silver-modern': 69,
-  'floating-frame': 59,
+  'basic-black': 299,
+  'basic-white': 299,
+  'wooden-natural': 499,
+  'wooden-dark': 499,
+  'golden-classic': 799,
+  'silver-modern': 699,
+  'floating-frame': 599,
 };
 
-const SUBJECT_EXTRA_COST = 25; // per additional subject beyond 1
+const SUBJECT_EXTRA_COST = 250;
 const RUSH_ORDER_MULTIPLIER = 1.5;
-const TAX_RATE = 0.08;
-const SHIPPING_BASE = 12;
+const TAX_RATE = 0.18; // 18% GST
+const SHIPPING_BASE = 150;
 
 export const calculateCustomOrderPrice = (options) => {
   const {
@@ -55,7 +55,6 @@ export const calculateCustomOrderPrice = (options) => {
   let basePrice = sizeInfo.base;
   let sizeMultiplier = sizeInfo.multiplier;
 
-  // Custom size calculation
   if (canvasSize === 'custom' && customSize) {
     const area = customSize.width * customSize.height;
     if (customSize.unit === 'cm') {
@@ -78,12 +77,11 @@ export const calculateCustomOrderPrice = (options) => {
     subtotal += rushOrderCost;
   }
 
-  subtotal = Math.round(subtotal * 100) / 100;
-  const shippingCost = SHIPPING_BASE + (sizeMultiplier > 2 ? 8 : 0);
-  const tax = Math.round(subtotal * TAX_RATE * 100) / 100;
-  const totalAmount = Math.round((subtotal + shippingCost + tax) * 100) / 100;
+  subtotal = Math.round(subtotal);
+  const shippingCost = SHIPPING_BASE + (sizeMultiplier > 2 ? 100 : 0);
+  const tax = Math.round(subtotal * TAX_RATE);
+  const totalAmount = subtotal + shippingCost + tax;
 
-  // Estimated days
   let estimatedDays = 14;
   if (sizeMultiplier > 3) estimatedDays = 21;
   if (sketchStyle === 'oil-painting' || sketchStyle === 'realistic') estimatedDays += 7;
@@ -95,7 +93,7 @@ export const calculateCustomOrderPrice = (options) => {
     styleMultiplier,
     framingCost,
     subjectsCost,
-    rushOrderCost: Math.round(rushOrderCost * 100) / 100,
+    rushOrderCost: Math.round(rushOrderCost),
     subtotal,
     shippingCost,
     tax,

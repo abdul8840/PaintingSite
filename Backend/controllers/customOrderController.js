@@ -1,8 +1,9 @@
 import CustomOrder from '../models/CustomOrder.js';
 import Coupon from '../models/Coupon.js';
-import stripe from '../config/stripe.js';
+// import stripe from '../config/stripe.js';
 import { calculateCustomOrderPrice } from '../utils/priceCalculator.js';
-import { sendCustomOrderConfirmation } from '../utils/emailService.js';
+// import { sendCustomOrderConfirmation } from '../utils/emailService.js';
+import razorpay from '../config/razorpay.js';
 
 // @desc    Calculate custom order price
 // @route   POST /api/custom-orders/calculate-price
@@ -125,47 +126,40 @@ export const createCustomOrder = async (req, res) => {
     await customOrder.save();
 
     // Create Stripe session
+    // Inside createCustomOrder, replace the Stripe session creation with:
+
+    // Create Razorpay order
     try {
-      const session = await stripe.checkout.sessions.create({
-        payment_method_types: ['card'],
-        mode: 'payment',
-        customer_email: req.user.email,
-        client_reference_id: customOrder._id.toString(),
-        line_items: [{
-          price_data: {
-            currency: 'usd',
-            product_data: {
-              name: `Custom ${sketchStyle.replace(/-/g, ' ')} - ${canvasSize}`,
-              description: `Custom painting order - ${colorStyle} ${sketchStyle.replace(/-/g, ' ')}`,
-            },
-            unit_amount: Math.round(totalWithDiscount * 100),
-          },
-          quantity: 1,
-        }],
-        metadata: {
+      const razorpayOrder = await razorpay.orders.create({
+        amount: Math.round(totalWithDiscount * 100), // paise
+        currency: 'INR',
+        receipt: customOrder.orderNumber,
+        notes: {
           orderId: customOrder._id.toString(),
           type: 'custom-order',
+          customerEmail: req.user.email,
         },
-        success_url: `${process.env.CLIENT_URL}/order-success?session_id={CHECKOUT_SESSION_ID}&type=custom`,
-        cancel_url: `${process.env.CLIENT_URL}/custom-painting`,
       });
 
-      customOrder.stripeSessionId = session.id;
+      customOrder.razorpayOrderId = razorpayOrder.id;
       await customOrder.save();
 
       res.status(201).json({
         success: true,
         order: customOrder,
-        sessionId: session.id,
-        url: session.url,
+        razorpayOrder: {
+          id: razorpayOrder.id,
+          amount: razorpayOrder.amount,
+          currency: razorpayOrder.currency,
+        },
+        keyId: process.env.RAZORPAY_KEY_ID,
       });
-    } catch (stripeError) {
-      console.error('Stripe error:', stripeError.message);
-      // Still return order but without payment URL
+    } catch (razorpayError) {
+      console.error('Razorpay error:', razorpayError.message);
       res.status(201).json({
         success: true,
         order: customOrder,
-        message: 'Order created but payment session failed. Please try again.',
+        message: 'Order created but payment initialization failed.',
       });
     }
   } catch (error) {

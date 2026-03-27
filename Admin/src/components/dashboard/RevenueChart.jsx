@@ -1,3 +1,5 @@
+import { formatPrice } from '../../utils/currency';
+
 const MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 export default function RevenueChart({ data = [] }) {
@@ -5,10 +7,7 @@ export default function RevenueChart({ data = [] }) {
     return (
       <div>
         <h3>Revenue Trend</h3>
-        <div>
-          <p>No revenue data available yet.</p>
-          <p>Revenue chart will appear once orders are placed.</p>
-        </div>
+        <p>No revenue data yet. Chart appears after first paid order.</p>
       </div>
     );
   }
@@ -22,18 +21,14 @@ export default function RevenueChart({ data = [] }) {
         {data.map((d, i) => {
           const revenue = d.revenue || 0;
           const heightPercent = maxRevenue > 0 ? (revenue / maxRevenue) * 100 : 0;
-          const monthName = d._id ? MONTH_NAMES[d._id.month] || '' : '';
-          const year = d._id?.year || '';
-
           return (
             <div key={i}>
               <div>
                 <div style={{ height: `${Math.max(heightPercent, 2)}%` }}>
-                  <span>${revenue.toLocaleString()}</span>
+                  <span>{formatPrice(revenue)}</span>
                 </div>
               </div>
-              <span>{monthName}</span>
-              <span>{year}</span>
+              <span>{d._id ? MONTH_NAMES[d._id.month] : ''}</span>
               <span>{d.count || 0} orders</span>
             </div>
           );

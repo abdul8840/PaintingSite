@@ -93,8 +93,10 @@ const customOrderSchema = new mongoose.Schema({
     enum: ['pending', 'paid', 'failed', 'refunded', 'partially-refunded'],
     default: 'pending',
   },
-  stripePaymentIntentId: String,
-  stripeSessionId: String,
+  razorpayOrderId: String,
+  razorpayPaymentId: String,
+  razorpaySignature: String,
+  currency: { type: String, default: 'INR' },
   // Order status
   status: {
     type: String,

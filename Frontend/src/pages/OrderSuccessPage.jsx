@@ -4,6 +4,7 @@ import orderApi from '../api/orderApi';
 import { HiCheckCircle } from 'react-icons/hi';
 import { HiShoppingBag, HiArrowRight, HiSparkles, HiReceiptRefund } from 'react-icons/hi2';
 import Loader from '../components/common/Loader';
+import { formatPrice } from '../utils/currency';
 
 export default function OrderSuccessPage() {
   const [searchParams] = useSearchParams();
@@ -116,7 +117,7 @@ export default function OrderSuccessPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-[var(--color-charcoal)]/60 font-medium">Total Amount</span>
                   <span className="text-lg font-bold text-gradient">
-                    ${order.totalAmount?.toFixed(2)}
+                    {formatPrice(order.totalAmount)}
                   </span>
                 </div>
 
