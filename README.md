@@ -128,21 +128,6 @@ cd backend
 npm install
 ```
 
-Create `.env` file:
-
-```
-PORT=5000
-MONGO_URI=your_mongodb_connection
-JWT_SECRET=your_secret_key
-CLOUDINARY_CLOUD_NAME=your_cloud_name
-CLOUDINARY_API_KEY=your_api_key
-CLOUDINARY_API_SECRET=your_api_secret
-RAZORPAY_KEY_ID=your_key
-RAZORPAY_KEY_SECRET=your_secret
-EMAIL_USER=your_email
-EMAIL_PASS=your_password
-```
-
 Run backend:
 
 ```bash
@@ -213,8 +198,8 @@ This project is licensed under the MIT License.
 
 **Your Name**
 
-* GitHub: https://github.com/your-username
-* Email: [your-email@example.com](mailto:your-email@example.com)
+* GitHub: https://github.com/abdul8840
+* Email: abdul14941naseer@gmail.com
 
 ---
 
